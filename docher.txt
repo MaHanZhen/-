@@ -1,0 +1,257 @@
+Centos 7下docker使用与安装
+
+	使用网络源
+
+	备份yum源：
+		mv /etc/yum.repos.d/CentOS-Base.repo /etc/yum.repos.d/CentOS-Base.repo.backup
+	下载网易yum源
+		cd /tmp
+		wget http://mirrors.163.com/.help/CentOS7-Base-163.repo
+		mv CentOS7-Base-163.repo /etc/yum.repos.d/CentOS-Base.repo
+		yum clean all 
+		yum makecache
+
+
+(
+	使用光盘源
+		mkdir /mnt/cdrom
+		vim /etc/fstab
+	添加
+		/dev/sr0                /mnt/cdrom            iso9660       defaults        0 0    
+
+	挂载光盘
+	mount -t iso9660 /dev/sr0  /mnt/cdrom
+
+	备份yum文件
+	cd /etc
+	tar -zcvf /tmp/yum.tar.gz yum.repos.d/
+	cd /etc/yum.repos.d/
+	rm -rf *
+	cd /tmp
+	tar -zxvf yum.tar.gz
+	cd yum.repos.d
+	cp CentOS-Media.repo /etc/yum.repos.d/
+	vim /etc/yum.repos.d/CentOS-Media.repo
+		baseurl=file:////mnt/cdrom/
+		enabled=1
+)
+
+
+	查看内核版本 内核版本需大于3.10
+		uname -r  
+
+	移除旧版本
+		yum remove docker \
+                docker-client \
+                docker-client-latest \
+                docker-common \
+                docker-latest \
+                docker-latest-logrotate \
+                docker-logrotate \
+                docker-selinux \
+                docker-engine-selinux \
+                docker-engine
+
+    安装系统工具
+    	sudo yum install -y yum-utils device-mapper-persistent-data lvm2
+    添加docker源
+    	yum-config-manager --add-repo http://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo 
+    安装docker
+		yum -y install docker-ce
+	测试docker是否安装
+		systemctl start docker
+		docker run hello-world
+	添加配置文件
+		 vim /etc/docker/daemon.json 
+			{
+	  			"registry-mirrors": ["http://hub-mirror.c.163.com"],
+	  			"labels": ["name=docker_server_2"]
+			}
+
+容器的基本操作
+	输出一条语句
+		docker run centos echo 'Hello World'
+
+	创建一个名字为base01的 交互式bash  
+		docker run --name=bash01 -i -t centos /bin/bash
+
+	列出最近创建的容易 -a 全部 -l最近
+		docker ps [-a]  [-l]
+
+	查看配置容器信息
+		docker inspect [标识]
+
+	启动一个已创建的容器
+		docker start -i [标识]
+
+	停止一个运行中的容器
+		docker stop [标识]
+
+	删除一个已停止的容器 docker rm $(docker ps -aq)
+		docker rm [标识]
+
+	查看进程产生的日志 -t 带格式输出
+		docker logs -t [标识]	
+
+	查看进程使用端口
+		docker port [标识] 或docker ps [标识]
+
+	查看web程序容器进程
+		docker top [标识]
+
+
+守护式创建
+	创建一个名字为base01的 交互式bash  
+		docker run --name=bash01 -i -t centos /bin/bash
+		按Ctrl+Q或者Ctrl+P切换至守护进程
+	
+	访问一个守护进程
+		docker attach [标识]
+	
+	以后台进程的方式每隔一秒输出一次Hello world 
+		docker run --name dc1 -d centos /bin/sh -c "while true;do echo hello world;sleep 1; done"
+
+	
+容器使用
+	抓取一个远程镜像
+		docker pull training/webapp
+	使用远程镜像启动一个线程  -d后台运行 -P指定默认端口 -p 本机端口:虚拟机端口 指定端口
+		docker run --name test-webapp -d -P training/webapp python app.py
+
+	
+镜像使用
+	列出本地拥有的镜像 -q 只查询ID
+		docker images
+	获取一个远程镜像
+		docker pull [镜像名:版本信息]
+	搜索镜像信息
+		docker search [镜像名]
+	根据本地进程创建一个镜像 -m 更新信息 -a 作者  test-webapp（进程名称） mhz/test:v2(新镜像名称：版本号)
+		 docker commit -m "test update" -a "mhz" test-webapp mhz/test:v2
+
+	创建镜像：
+		Dockerfile:  FROM 指定镜像源  RUN  在镜像中执行命令
+			# 注释信息
+			#指定使用镜像
+			FROM    centos
+			#指定镜像所有者
+			MAINTAINER      Fisher "fisher@sudops.com"
+			#指定镜像运行的命令 会在当前镜像创建一个新的分层
+			RUN     /bin/echo 'root:123456' |chpasswd
+			#指定镜像使用的端口 需要在运行时用-p 指定
+			EXPOSE  80
+			#指定容器运行时的默认行为 会被覆盖
+			CMD     /usr/sbin/sshd -D
+			#指定容器运行时的默认行为 不会被覆盖
+			ENTRYPOINT /usr/sbin/sshd -D
+			#ADD 引用文件路径 目标文件路径 含解压
+			ADD index.html /var/www/
+			#COPY 不解压
+			COPY index.html /var/www/index.html
+			#WORKDIR [path] 指定工作目录 cmd运行目录在此下执行
+			#ENV [k=v] 指定环境变量
+			#USER [用户名]指定用户
+			#VOLUME ["数据卷路径",...]  #指定一个挂载的数据卷
+
+		docker build -t 镜像名:版本号 -f docker_build_file 保存路径 [--no-cache]
+		如果Dockerfile在当前目录 使用 . 即可
+		docker build -t mhz/testbuild .
+		克隆一个镜像
+			docker tag [标识] [镜像名:版本号]
+
+		查看镜像构建过程
+		docker history [标识]
+
+	删除镜像 docker rmi $(docker images -q)
+	docker rmi [标识]
+
+	上传镜像
+	docker push [标识]
+
+
+远程连接
+	服务端
+		cp  /lib/systemd/system/docker.service /lib/systemd/system/docker.service.back
+		vim /lib/systemd/system/docker.service
+		在[service]下添加
+			EnvironmentFile=/etc/default/docker
+		修改ExecStart
+			ExecStart=/usr/bin/dockerd -H fd:// --containerd=/run/containerd/containerd.sock $DOCKER_OPTS
+		vim /etc/default/docker  -H 开放一个远程连接  [tcp|unix|fd：//ip:端口]
+			DOCKER_OPTS=" -H tcp://0.0.0.0:2375"
+		查看连接
+			curl http://127.0.0.1:2375/info
+
+	客户端
+		远程访问服务器 一次性
+			docker -H [tcp|unix|fd：//ip:端口] 命令
+		长期
+			export DOCKER_HOST="[tcp|unix|fd：//ip:端口]"
+			export DOCKER_HOST="tcp://192.168.65.233:2375"
+		取消
+			export DOCKER_HOST=""
+
+网络管理
+	添加网桥管理
+		 yum install -y bridge-utils
+	修改虚拟网卡地址
+		ifconfig docker0 192.168.200.1 netmask 255.255.255.0
+	创建新网桥
+		brctl addbr br0
+	配置新网桥地址
+		ifconfig br0 192.168.200.1 netmask 255.255.255.0
+
+	容器内连接：默认允许连接
+
+		创建镜像
+			vim /etc/default/docker
+			 	DOCKER_OPTS="-b br0"
+
+			touch Dockerfile 
+			vim Dockerfile
+				FROM centos
+				RUN yum install -y net-tools
+				RUN yum install -y httpd
+				EXPOSE  80
+				CMD /bin/bash
+
+			docker build -t image/test_network .
+
+
+		vim /etc/default/docker 
+		--icc=false #拒绝容器内链接
+		--icc=false --iptables=true #运行特定的容器相链接
+
+		docker run --name test_network_1 -it image/test_network   
+		docker run --name test_network_2 -it image/test_network    
+		#--link给链接设置别名 --icc=false --iptables=true设置时能与特定的容器连接
+		docker run --name test_network_2 -it --link=test_network_1:webtest image/test_network  
+		#如果直接启动可以忽略{
+			docker start test_network_1 test_network_2 test_network_3
+		}
+		docker attach test_network_3
+		ping  webtest
+		如果ping不同可以尝试{
+			#查看路由信息
+			iptables -L -n
+			#清空路由信息
+			iptables -F
+		}
+
+数据卷
+	docker run  -it -v 本机共享目录：镜像共享目录：权限 镜像名 指令
+	docker run -it --name share_test_1 -v /tmp/share/docker:/tmp/share/docker centos /bin/bash
+	# --volumes-from [容器名]传递一个数据挂在卷的配置
+	docker run  --name share_test_2  -it --volumes-from share_test centos /bin/bash
+
+	备份 在添加一个共享目录，利用tar进行备份和解压
+		docker run --name test_backup --volumes-from share_test_1 -v /tmp/backup/docker:/backup centos  tar -zcvf /backup/share_test_1.tar /tmp/share/docker
+
+	解压 
+		docker run --name test_release_backup --volumes-from share_test_1 -v /tmp/backup/docker:/backup centos  tar -zxvf /backup/share_test_1.tar /tmp/share/docker
+
+虚拟主机的互联
+	安装weave
+		curl -L git.io/weave -o /tmp/weave
+ 		chmod a+x /tmp/weave
+ 		./tmp/weave

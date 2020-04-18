@@ -107,6 +107,9 @@ Centos 7下docker使用与安装
 	
 	访问一个守护进程
 		docker attach [标识]
+
+	访问一个守护进程执行命令
+		docker exec -it [标识] [命令]
 	
 	以后台进程的方式每隔一秒输出一次Hello world 
 		docker run --name dc1 -d centos /bin/sh -c "while true;do echo hello world;sleep 1; done"
